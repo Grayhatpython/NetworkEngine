@@ -134,3 +134,5 @@ cmake --build build
 ./build/DummyClient/DummyClient
 ./build/MonitoringServer/MonitoringServer
 
+
+-- 현재는 네트워크 코드 작성을 하고 있는 중이라 실행되지 않음 ;;
