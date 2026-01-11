@@ -46,13 +46,6 @@ target_link_libraries(${APP_NAME} PRIVATE
     ${OPENGL_LIBRARIES}     # CMake의 find_package(OpenGL) 명령으로 찾아진 OpenGL 관련 라이브러리들
 )
 
-# Windows 운영체제인 경우에만 추가적인 링크 설정
-# WIN32는 CMake가 Windows 플랫폼에서 실행될 때 자동으로 설정되는 내장 변수
-if(WIN32)
-    # Windows에서는 OpenGL 기능을 사용하기 위해 'opengl32' 라이브러리를 추가로 연결
-    target_link_libraries(${APP_NAME} PRIVATE opengl32)
-endif()
-
 # 생성된 실행 파일(`APP_NAME` = MonitoringServer)이 소스 코드에서 인클루드하는 헤더 파일들을 찾을 경로를 설정
 # PRIVATE 키워드는 이 인클루드 디렉토리들이 `APP_NAME` 타겟의 컴파일에만 사용되고,
 # 다른 타겟에게는 상속되지 않음을 의미
