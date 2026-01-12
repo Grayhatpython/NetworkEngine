@@ -17,10 +17,9 @@ namespace servercore
 			return;
 		}
 
-		_status.store(TaskStatus::Running);
-
 		if (_func)
 		{
+			_status.store(TaskStatus::Running);
 			_func();
 			_status.store(TaskStatus::Completed);
 		}

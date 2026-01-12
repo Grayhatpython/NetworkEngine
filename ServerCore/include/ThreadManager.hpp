@@ -61,6 +61,9 @@ namespace servercore
 		bool _shutdown = false;
 	};
 
+	using Event = Task;
+	using EventQueue = TaskQueue;
+
 	class ThreadManager
 	{
 	public:
@@ -91,8 +94,8 @@ namespace servercore
 		std::vector<std::thread> _threads;
 		std::atomic<bool> _stopped = false;
 
-		std::vector<std::thread> _threadPool;
-		std::shared_ptr<TaskQueue> _taskQueue;
-		std::atomic<bool> _poolRunning = false;
+		std::vector<std::thread> 		_threadPool;
+		std::shared_ptr<TaskQueue> 		_taskQueue;
+		std::atomic<bool> 				_poolRunning = false;
 	};
 }

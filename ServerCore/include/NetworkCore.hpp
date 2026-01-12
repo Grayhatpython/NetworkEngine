@@ -5,18 +5,21 @@ namespace servercore
     class Session;
     class Acceptor;
     class GlobalContext;
+    class SessionManager;
     class INetworkDispatcher;
 
     class INetworkCore : public std::enable_shared_from_this<INetworkCore>
     {
     public:
+        INetworkCore(std::function<std::shared_ptr<Session>()> sessionFactory);
+        virtual ~INetworkCore();
 
     public:
-        static std::shared_ptr<Session>                 CreateSession();
-        
+
     protected:
-        GlobalContext*                                  _globalContext = nullptr;
-        std::shared_ptr<INetworkDispatcher>             _networkDispatcher;
+        std::unique_ptr<GlobalContext>                  _globalContext;
+        std::unique_ptr<SessionManager>                 _sessionManager;
+        std::unique_ptr<INetworkDispatcher>             _networkDispatcher;
 
         std::mutex                                      _mutex;
         std::condition_variable                         _cv;
@@ -24,21 +27,25 @@ namespace servercore
         std::vector<std::thread>                        _workerThreads;
         int32                                           _workerThreadCount = 0;
 
-        std::unordered_set<std::shared_ptr<Session>>    _sessions;
-        std::function<std::shared_ptr<Session>(void)>   _sessionFactory;
     };
 
     class Server : public INetworkCore
     {
     public:
+       Server(std::function<std::shared_ptr<Session>()> sessionFactory);
+       virtual ~Server() override;
 
     private:
+        NetworkAddress						_listenNetworkAddress;
+		std::shared_ptr<Acceptor>			_acceptor;
+		uint16								_port = 0;
     };
 
     class Client : public INetworkCore
     {
     public:
-
+       Client(std::function<std::shared_ptr<Session>()> sessionFactory);
+       virtual ~Client() override;
     private:
     };
 }
