@@ -23,7 +23,6 @@ Windows IOCP 모델과 Linux epoll 모델의 차이를 비교·이해하고,
 본 서버는 **비동기 I/O 작업을 등록하는 방식(IOCP)** 이 아니라,  
 **이벤트 관심사 등록 후 이벤트 발생 시 직접 I/O를 수행하는 epoll 모델**을 기준으로 설계하고 있습니다.
 
-```text
 [epoll_ctl]
      ↓
 [epoll_wait]
@@ -31,6 +30,7 @@ Windows IOCP 모델과 Linux epoll 모델의 차이를 비교·이해하고,
 [event dispatch]
      ↓
 [recv / send]
+
 
 
 # Build (Ubuntu)
