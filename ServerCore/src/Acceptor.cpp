@@ -4,6 +4,8 @@
 #include "NetworkUtils.hpp"
 #include "NetworkEvent.hpp"
 #include "NetworkDispatcher.hpp"
+#include "Session.hpp"
+#include "SessionManager.hpp"
 
 namespace servercore
 {
@@ -68,7 +70,7 @@ namespace servercore
 		NetworkUtils::CloseSocketFd(_listenSocketFd);
 	}
 
-	void Acceptor::Dispatch(INetworkEvent* networkEvent, bool succeeded, int32 errorCode)
+	void Acceptor::Dispatch(INetworkEvent* networkEvent)
 	{
 		if(networkEvent->GetNetworkEventType() == NetworkEventType::Accept)
 		{
@@ -112,7 +114,7 @@ namespace servercore
 			NetworkAddress remoteAddress(address);
 
             //  TODO
-			auto newSession = INetworkCore::CreateSession();
+			auto newSession = GSessionManager->CreateSession();
 			assert(newSession);
 
 			if(NetworkUtils::SetReuseAddress(clientSocketFd, true) == false)
@@ -121,7 +123,7 @@ namespace servercore
 				return;
 			}
 
-			newSession->SetSocket(clientSocketFd);
+			newSession->SetSocketFd(clientSocketFd);
 			newSession->SetRemoteAddress(remoteAddress);
 			
 			if (_networkDispatcher->Register(std::static_pointer_cast<INetworkObject>(newSession)) == false)
@@ -130,7 +132,7 @@ namespace servercore
 				return;
 			}
 
-			_serverCore->AddSession(newSession);
+			GSessionManager->AddSession(newSession);
 			newSession->ProcessConnect();
 		}
 

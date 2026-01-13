@@ -32,7 +32,7 @@ namespace servercore
     public:
         virtual NetworkObjectType   GetNetworkObjectType() = 0;
         virtual SocketFd            GetSocketFd() = 0;
-        virtual void                Dispatch(INetworkEvent* networkEvent, bool succeeded, int32 errorCode) = 0;  
+        virtual void                Dispatch(INetworkEvent* networkEvent) = 0;  
     };
 
     class EpollObject : public INetworkObject
@@ -43,7 +43,7 @@ namespace servercore
     public:
         virtual NetworkObjectType   GetNetworkObjectType() = 0;
         virtual SocketFd            GetSocketFd() = 0;
-        virtual void                Dispatch(INetworkEvent* networkEvent, bool succeeded, int32 errorCode) = 0;
+        virtual void                Dispatch(INetworkEvent* networkEvent) = 0;
     };
 
     class INetworkDispatcher  : public std::enable_shared_from_this<INetworkDispatcher>

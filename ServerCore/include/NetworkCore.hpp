@@ -18,8 +18,7 @@ namespace servercore
 
     protected:
         std::unique_ptr<GlobalContext>                  _globalContext;
-        std::unique_ptr<SessionManager>                 _sessionManager;
-        std::unique_ptr<INetworkDispatcher>             _networkDispatcher;
+        std::shared_ptr<INetworkDispatcher>             _networkDispatcher;
 
         std::mutex                                      _mutex;
         std::condition_variable                         _cv;
@@ -35,6 +34,9 @@ namespace servercore
        Server(std::function<std::shared_ptr<Session>()> sessionFactory);
        virtual ~Server() override;
 
+    public:
+        bool Start(uint16 port);
+
     private:
         NetworkAddress						_listenNetworkAddress;
 		std::shared_ptr<Acceptor>			_acceptor;
@@ -46,6 +48,11 @@ namespace servercore
     public:
        Client(std::function<std::shared_ptr<Session>()> sessionFactory);
        virtual ~Client() override;
+
+    public:
+        bool Connect(NetworkAddress& targetAddress);
+
     private:
+
     };
 }

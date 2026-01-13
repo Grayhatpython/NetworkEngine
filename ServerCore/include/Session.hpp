@@ -7,6 +7,7 @@ namespace servercore
 {
     class Session : public EpollObject
     {
+        friend class Acceptor;
     public:
         Session();
         virtual ~Session() override;
@@ -14,7 +15,7 @@ namespace servercore
     public:
         virtual NetworkObjectType   GetNetworkObjectType() override;
         virtual SocketFd            GetSocketFd() override;
-        virtual void                Dispatch(INetworkEvent* networkEvent, bool succeeded, int32 errorCode) override;
+        virtual void                Dispatch(INetworkEvent* networkEvent) override;
 
     public:
         bool    Connect(NetworkAddress& targetNetworkAddress);
@@ -28,27 +29,18 @@ namespace servercore
         virtual void OnSend() {};
 
     private:
-   		void		RegisterConnect(ConnectEvent* connectEvent, NetworkAddress& targetAddress);
-		void		RegisterDisconnect(DisconnectEvent* disconnectEvent);
-		void		RegisterRecv();
-		void		RegisterSend();
-
 		void		ProcessConnect();
-		void		ProcessConnect(ConnectEvent* connectEvent, int32 numOfBytes);
-		void		ProcessDisconnect(DisconnectEvent* disconnectEvent, int32 numOfBytes);
-		void		ProcessRecv(RecvEvent* recvEvent, int32 numOfBytes);
-		void		ProcessSend(SendEvent* sendEvent, int32 numOfBytes);
+		void		ProcessDisconnect(DisconnectEvent* disconnectEvent);
+		void		ProcessRecv(RecvEvent* recvEvent);
+		void		ProcessSend(SendEvent* sendEvent);
 
 		void		CloseSocket();
-
-		void		HandleError(INetworkEvent* networkEvent, int32 errorCode);
-
 	public:
 		void								SetNetworkDispatcher(std::shared_ptr<INetworkDispatcher> networkDispatcher) { _networkDispatcher = networkDispatcher; }
 		std::shared_ptr<INetworkDispatcher>	GetNetworkDispatcher() { return _networkDispatcher; }
 
-		void				SetSocket(SocketFd socket) { _socket = socket; }
-		SocketFd&			GetSocket() { return _socket; }
+		void				SetSocketFd(SocketFd socketFd) { _socketFd = socketFd; }
+		SocketFd			GetSocketFd() { return _socketFd; }
 
 		void				SetRemoteAddress(const NetworkAddress& remoteAddress) { _remoteAddress = remoteAddress; }
 		NetworkAddress		GetRemoteAddress() const { return _remoteAddress; }
@@ -59,7 +51,7 @@ namespace servercore
     private:
     	static std::atomic<uint64> S_GenerateSessionId;
 
-        SocketFd    _socket = INVALID_SOCKET_FD_VALUE;
+        SocketFd    _socketFd = INVALID_SOCKET_FD_VALUE;
         uint64      _sessionId = 0;
 
         NetworkAddress                              _remoteAddress{};
@@ -76,4 +68,12 @@ namespace servercore
 
         StreamBuffer								_streamBuffer{};
     };
+
+    #pragma pack(push, 1)
+    struct PacketHeader
+    {
+        uint16 size;
+        uint16 id;
+    };
+    #pragma pack(pop)
 }

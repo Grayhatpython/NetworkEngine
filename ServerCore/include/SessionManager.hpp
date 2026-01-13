@@ -6,15 +6,16 @@ namespace servercore
     class SessionManager
     {
     public:
-        explicit SessionManager(std::function<std::shared_ptr<Session>()> sessionFactory);
+        explicit SessionManager();
 
     public:
         void                        AddSession(std::shared_ptr<Session> session);
 	    void                        RemoveSession(std::shared_ptr<Session> session);
         std::shared_ptr<Session>    CreateSession();
 
-	    void                        SetSessionFactory(std::function<std::shared_ptr<Session>()> sessionFactory) { _sessionFactory = sessionFactory; }
-        uint64                      GetSessionCount();
+	    void                                            SetSessionFactory(std::function<std::shared_ptr<Session>()> sessionFactory) { _sessionFactory = sessionFactory; }
+        std::function<std::shared_ptr<Session>(void)>   GetSessionFactory() { return _sessionFactory; }
+        uint64                                          GetSessionCount();
 
     private:
         Lock                                            _lock;

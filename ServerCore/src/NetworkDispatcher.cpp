@@ -83,16 +83,16 @@ namespace servercore
     {
         int32 numOfEvents = ::epoll_wait(_epollFd, _epollEvents.data(), static_cast<int32>(_epollEvents.size()), timeoutMs); 
 
+        if(numOfEvents == 0)
+            return DispatchResult::Timeout;
+        
         if(numOfEvents < 0)
         {
             if(errno == EINTR)
-                return DispatchResult::Timeout;
-            else
-                return DispatchResult::CriticalError;
+                return DispatchResult::Interrupted;
         }
-        else if(numOfEvents == 0)
-            return DispatchResult::Timeout;
-        else
+
+        if(numOfEvents > 0)
         {
             for(int32 i = 0 ; i < numOfEvents; i++)
             {
@@ -100,7 +100,7 @@ namespace servercore
                 {
                     char buffer[0];
                     ::read(_exitSignalEventPipe[0], buffer, sizeof(buffer));
-                    return DispatchResult::Exit;
+                    return DispatchResult::ExitRequested;
                 }
 
                 auto networkObject = static_cast<INetworkObject*>(_epollEvents[i].data.ptr);
@@ -121,7 +121,7 @@ namespace servercore
 
                     ErrorEvent errorEvent;
 
-                    networkObject->Dispatch(&errorEvent, false, error);
+                    networkObject->Dispatch(&errorEvent);
                 }
 
                 //  Read Event
@@ -135,7 +135,7 @@ namespace servercore
                         {
                             //  TODO
                             AcceptEvent* acceptEvent = cnew<AcceptEvent>();
-                            acceptor->Dispatch(acceptEvent, true, static_cast<int32>(ErrorCode::Success));
+                            acceptor->Dispatch(acceptEvent);
                         }
                     }   
                     else if(networkObjectType == NetworkObjectType::Session)
@@ -146,7 +146,7 @@ namespace servercore
                         {
                             //  TODO
                             RecvEvent* recvEvent = cnew<RecvEvent>();
-                            session->Dispatch(recvEvent, true, static_cast<int32>(ErrorCode::Success));
+                            session->Dispatch(recvEvent);
                         }
                     }
                     else
@@ -190,7 +190,7 @@ namespace servercore
         if(numOfEvents == static_cast<int32>(_epollEvents.size()))
             _epollEvents.resize(_epollEvents.size() * 2);
 
-        return DispatchResult::Success;
+        return DispatchResult::Dispatched;
     }
 
     void EpollDispatcher::PostExitSignal()

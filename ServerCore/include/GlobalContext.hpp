@@ -4,6 +4,7 @@ namespace servercore
 {
 	class MemoryPool;
 	class ThreadManager;
+	class SessionManager;
 	class GlobalContext
 	{
 	public:
@@ -25,15 +26,19 @@ namespace servercore
 		void Clear();
 
 	public:
-		MemoryPool* 	GetMemoryPool() { return _memoryPool;}
-		ThreadManager* 	GetThreadPool() { return _threadManager;}
+		MemoryPool* 		GetMemoryPool() { return _memoryPool;}
+		ThreadManager* 		GetThreadPool() { return _threadManager;}
+		SessionManager*		GetSessionManager() { return _sessionManager; }
+
 
 	private:
 		MemoryPool* 		_memoryPool = nullptr;
-		ThreadManager* 	_threadManager = nullptr;
+		ThreadManager* 		_threadManager = nullptr;
+		SessionManager* 	_sessionManager= nullptr;
 	};
 
 #define GMemoryPool		GlobalContext::GetInstance().GetMemoryPool()
 #define GThreadManager	GlobalContext::GetInstance().GetThreadPool()
+#define GSessionManager	GlobalContext::GetInstance().GetSessionManager()
 }
 

@@ -1,5 +1,7 @@
 #include "Pch.hpp"
 #include "NetworkCore.hpp"
+#include "Session.hpp"
+#include "Acceptor.hpp"
 #include "NetworkUtils.hpp"
 #include "SessionManager.hpp"
 #include "NetworkDispatcher.hpp"
@@ -7,11 +9,12 @@
 namespace servercore
 {
     INetworkCore::INetworkCore(std::function<std::shared_ptr<Session>()> sessionFactory)
-        : _sessionManager(std::make_shared<SessionManager>()), _networkDispatcher(std::make_shared<EpollDispatcher>())
+        : _globalContext(std::make_unique<GlobalContext>())
     {
         NetworkUtils::Initialize();
+        _globalContext->Initialize();
 
-        _sessionManager->SetSessionFactory(sessionFactory);
+        GSessionManager->SetSessionFactory(sessionFactory);
     }
 
     INetworkCore::~INetworkCore()
@@ -20,7 +23,7 @@ namespace servercore
     }
 
     Server::Server(std::function<std::shared_ptr<Session>()> sessionFactory)
-        : INetworkCore(sessionFactory)
+        : INetworkCore(sessionFactory), _acceptor(std::make_shared<Acceptor>())
     {
 
     }
@@ -28,6 +31,12 @@ namespace servercore
     Server::~Server()
     {
 
+    }
+
+    bool Server::Start(uint16 port)
+    {
+
+        return true;
     }
 
     Client::Client(std::function<std::shared_ptr<Session>()> sessionFactory)

@@ -4,8 +4,7 @@
 
 namespace servercore
 {
-    SessionManager::SessionManager(std::function<std::shared_ptr<Session>()> sessionFactory)
-        :   _sessionFactory(sessionFactory)
+    SessionManager::SessionManager()
     {
 
     }

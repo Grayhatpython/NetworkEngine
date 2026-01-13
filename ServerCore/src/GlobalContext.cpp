@@ -3,6 +3,7 @@
 #include "MemoryPool.hpp"
 #include "ThreadManager.hpp"
 #include "SendBufferPool.hpp"
+#include "SessionManager.hpp"
 
 namespace servercore
 {
@@ -15,8 +16,9 @@ namespace servercore
 	{
 		_memoryPool = new MemoryPool();
 		_threadManager = new ThreadManager();
+		_sessionManager = new SessionManager();
 
-		if(_memoryPool == nullptr || _threadManager == nullptr)
+		if(_memoryPool == nullptr || _threadManager == nullptr || _sessionManager == nullptr )
 			return false;
 
 		return true;
@@ -24,6 +26,13 @@ namespace servercore
 
 	void GlobalContext::Clear()
 	{
+		//	TODO : Clear
+		if(_sessionManager)
+		{
+			delete _sessionManager;
+			_sessionManager = nullptr;
+		}
+
 		if (_threadManager)
 		{
 			delete _threadManager;

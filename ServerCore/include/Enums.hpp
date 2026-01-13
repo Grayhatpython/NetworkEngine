@@ -29,11 +29,11 @@ namespace servercore
 
 	enum class DispatchResult
 	{
-		Success,
-		IoError,
-
-		Exit,
+		EventTriggered = 100,
 		Timeout,
-		CriticalError,
+		Interrupted,
+		ExitRequested,
+		FatalError,
+		Dispatched,
 	};
 }
