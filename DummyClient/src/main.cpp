@@ -1,9 +1,6 @@
 #include "Pch.hpp"  
-
+#include "Session.hpp"
 /*
-#include "ServerCore.hpp"
-#include "ServerSession.hpp"
-
 #pragma pack(push, 1)
 struct TestPacket : PacketHeader
 {
@@ -104,6 +101,33 @@ int main()
 }
 #else
 */
+
+class ServerSession : public servercore::Session
+{
+public:
+    virtual void OnConnected() override
+    {
+
+    }
+
+    virtual void OnDisconnected() override
+    {
+
+    }
+
+    virtual void OnRecv(BYTE* buffer, int32 numOfBytes) override
+    {
+
+    }
+
+    virtual void OnSend() override
+    {
+
+    }
+
+private:
+
+};
 
 int main(int argc, char* argv[])
 {

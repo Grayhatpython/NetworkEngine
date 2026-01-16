@@ -8,13 +8,12 @@ namespace servercore
 	class GlobalContext
 	{
 	public:
+		GlobalContext() = default;
+		~GlobalContext();
+		
 		GlobalContext(const GlobalContext&) = delete;
 		GlobalContext& operator=(const GlobalContext&) = delete;
 	
-	private:
-		GlobalContext() = default;
-		~GlobalContext();
-
 	public:
 		static GlobalContext& GetInstance()
 		{

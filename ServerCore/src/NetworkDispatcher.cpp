@@ -79,7 +79,7 @@ namespace servercore
         return true;
     }
 
-    DispatchResult  EpollDispatcher::Dispatch(uint32 timeoutMs = TIMEOUT_INFINITE)
+    DispatchResult  EpollDispatcher::Dispatch(uint32 timeoutMs)
     {
         int32 numOfEvents = ::epoll_wait(_epollFd, _epollEvents.data(), static_cast<int32>(_epollEvents.size()), timeoutMs); 
 
@@ -234,7 +234,7 @@ namespace servercore
     bool EpollDispatcher::UnRegister(std::shared_ptr<INetworkObject> networkObject)
     {   
         //  networkObject ( Session, Acceptor ) Event 해제
-        if (::epoll_ctl(_epollFd, EPOLL_CTL_DEL, networkObject->GetSocketFd(), nullptr) < 0) 
+        if (::epoll_ctl(_epollFd, EPOLL_CTL_DEL, networkObject->GetSocketFd(), nullptr) == RESULT_ERROR) 
             return false;
 
         return true;

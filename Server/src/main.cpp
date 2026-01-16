@@ -1,58 +1,75 @@
 #include "Pch.hpp"
+#include "Session.hpp"
+#include "NetworkCore.hpp"
 
+class ClientSession : public servercore::Session
+{
+public:
+    virtual void OnConnected() override
+    {
+
+    }
+
+    virtual void OnDisconnected() override
+    {
+
+    }
+
+    virtual void OnRecv(BYTE* buffer, int32 numOfBytes) override
+    {
+
+    }
+
+    virtual void OnSend() override
+    {
+
+    }
+
+private:
+
+};
 
 int main()
 {
+    //  SessionFactory 
+    std::function<std::shared_ptr<ClientSession>(void)> sessionFactory = []() {
+        return servercore::MakeShared<ClientSession>();
+    };
 
-    std::cout << "Tset" << std::endl;
+    std::unique_ptr<servercore::Server> server = std::make_unique<servercore::Server>(sessionFactory);
+    bool successed = server->Start(8000);
+
+    if(successed == false)
+        return RESULT_ERROR;
+
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < 1; i++)
     {
-           /*
-        std::function<std::shared_ptr<ClientSession>()> sessionFactory = []() {
-            return servercore::MakeShared<ClientSession>();
-            };
-
-        std::shared_ptr<servercore::ServerService> server = std::make_shared<servercore::ServerService>(1, sessionFactory);
-        server->Start(8888);
-
-        char input;
-
-        while (true)
-        {
-            std::cin >> input;
-
-            if (input == 'q' || input == 'Q')
-                break;
-        }
-
-        server->Stop();
-
-     
-        auto start = std::chrono::high_resolution_clock::now();
-
-        for (int i = 0; i < 5; i++)
-        {
-            ServerCore::GThreadManager->Launch([]() {
-                for (int i = 0; i < 100000; i++)
+        servercore::GThreadManager->Launch([&server]() {
+                while(true)
                 {
-                    //auto k1 = ServerCore::cnew<Knight>();
-                    //ServerCore::cdelete(k1);
+                    auto dispatchResult = server->NetworkDispatch();
 
-                    auto k1 = new Knight();
-                    delete k1;
-                }
-                },"TestThread", false);
-        }
-        
-        ServerCore::GThreadManager->Join();
-
-        auto end = std::chrono::high_resolution_clock::now();
-        
-        std::chrono::duration<double, std::milli> duration = end - start;
-
-        std::cout << "시간 : " << duration.count() << " ms" << std::endl;
-        */
-           
+                    //  TODO
+                    if(dispatchResult == servercore::DispatchResult::InvalidDispatcher || 
+                        dispatchResult == servercore::DispatchResult::ExitRequested)
+                    {
+                        //  server->Stop();
+                        break;
+                    }
+                }   
+            },"Dispatch Thread");
     }
+    
+    servercore::GThreadManager->Join();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    std::chrono::duration<double, std::milli> duration = end - start;
+
+    std::cout << "시간 : " << duration.count() << " ms" << std::endl;
 
     return 0;
 } 

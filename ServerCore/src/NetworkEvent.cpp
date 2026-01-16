@@ -15,7 +15,7 @@ namespace servercore
        return std::static_pointer_cast<Session>(_owner);
    }
    
-   std::shared_ptr<Acceptor> AcceptorEvent::GetOwnerAcceptor()
+   std::shared_ptr<Acceptor> AcceptEvent::GetOwnerAcceptor()
    {
        return std::static_pointer_cast<Acceptor>(_owner);
    }

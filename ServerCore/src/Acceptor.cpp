@@ -19,7 +19,7 @@ namespace servercore
 
 	}
 
-	bool Acceptor::Start(uint16 port, int32 backlog = SOMAXCONN)
+	bool Acceptor::Start(uint16 port, int32 backlog)
 	{
 		if (_listenSocketFd == INVALID_SOCKET_FD_VALUE)
 		{

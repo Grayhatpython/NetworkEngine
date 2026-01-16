@@ -1,4 +1,5 @@
 #pragma once    
+#include "NetworkAddress.hpp"
 
 namespace servercore
 {
@@ -15,6 +16,8 @@ namespace servercore
         virtual ~INetworkCore();
 
     public:
+        virtual void Stop();
+        DispatchResult NetworkDispatch(uint32 timeoutMs = TIMEOUT_INFINITE);
 
     protected:
         std::unique_ptr<GlobalContext>                  _globalContext;
@@ -36,6 +39,7 @@ namespace servercore
 
     public:
         bool Start(uint16 port);
+        virtual void Stop() override;
 
     private:
         NetworkAddress						_listenNetworkAddress;
@@ -51,6 +55,7 @@ namespace servercore
 
     public:
         bool Connect(NetworkAddress& targetAddress);
+        virtual void Stop() override;
 
     private:
 

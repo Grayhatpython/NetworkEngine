@@ -22,11 +22,6 @@ namespace servercore
 		Session,
 	};
 
-	enum class ErrorCode
-	{
-		Success = 10000,
-	};
-
 	enum class DispatchResult
 	{
 		EventTriggered = 100,
@@ -35,5 +30,6 @@ namespace servercore
 		ExitRequested,
 		FatalError,
 		Dispatched,
+		InvalidDispatcher
 	};
 }

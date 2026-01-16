@@ -1,7 +1,7 @@
 #pragma once
 #include "StreamBuffer.hpp"
 #include "NetworkAddress.hpp"
-#include "NetworkInterface.hpp"
+#include "NetworkEvent.hpp"
 
 namespace servercore
 {
@@ -14,7 +14,7 @@ namespace servercore
 
     public:
         virtual NetworkObjectType   GetNetworkObjectType() override;
-        virtual SocketFd            GetSocketFd() override;
+        virtual SocketFd            GetSocketFd() override { return _socketFd; }
         virtual void                Dispatch(INetworkEvent* networkEvent) override;
 
     public:
@@ -40,7 +40,6 @@ namespace servercore
 		std::shared_ptr<INetworkDispatcher>	GetNetworkDispatcher() { return _networkDispatcher; }
 
 		void				SetSocketFd(SocketFd socketFd) { _socketFd = socketFd; }
-		SocketFd			GetSocketFd() { return _socketFd; }
 
 		void				SetRemoteAddress(const NetworkAddress& remoteAddress) { _remoteAddress = remoteAddress; }
 		NetworkAddress		GetRemoteAddress() const { return _remoteAddress; }

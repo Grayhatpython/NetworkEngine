@@ -1,8 +1,8 @@
 #include "Pch.hpp"
 #include "Session.hpp"
-#include "NetworkDispatcher.hpp"
 #include "NetworkUtils.hpp"
 #include "SessionManager.hpp"
+#include "NetworkDispatcher.hpp"
 
 namespace servercore
 {
@@ -81,6 +81,19 @@ namespace servercore
 		DisconnectEvent* disconnectEvent = cnew<DisconnectEvent>();
 		auto session = shared_from_this();
 		disconnectEvent->SetOwner(session);
+
+		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+		if(epollDispatcher)
+		{
+			bool successed = epollDispatcher->UnRegister(shared_from_this());
+			if(successed == false)
+				;	//	?
+		}
+		else
+		{
+			//?
+		}
+
 		ProcessDisconnect(disconnectEvent);
 	}
 
@@ -101,7 +114,7 @@ namespace servercore
 
 		전담 send 스레드 활용할 생각
 		*/
-
+		return true;
 	}
 
 	void Session::ProcessConnect()
@@ -113,6 +126,7 @@ namespace servercore
 	void Session::ProcessDisconnect(DisconnectEvent* disconnectEvent)
 	{
 		_isConnected.store(false);
+		_isDisconnectPosted.store(false);
 
 		OnDisconnected();
 
@@ -124,7 +138,10 @@ namespace servercore
 			disconnectEvent = nullptr;
 		}
 
-		GSessionManager->RemoveSession()
+		//	TODO
+		auto session = std::static_pointer_cast<Session>(shared_from_this());
+		if(session)
+			GSessionManager->RemoveSession(session);
 	}
 
 	void Session::ProcessRecv(RecvEvent* recvEvent)
@@ -226,6 +243,7 @@ namespace servercore
 			case NetworkEventType::Connect:
 				break;
 			case NetworkEventType::Recv:
+			{
 				RecvEvent* recvEvent = static_cast<RecvEvent*>(networkEvent);
 				if(recvEvent)
 				{
@@ -234,7 +252,9 @@ namespace servercore
 					ProcessRecv(recvEvent);
 				}
 				break;
+			}
 			case NetworkEventType::Send:
+			{
 				SendEvent* sendEvent = static_cast<SendEvent*>(networkEvent);
 				if(sendEvent)
 				{
@@ -243,6 +263,7 @@ namespace servercore
 					ProcessSend(sendEvent);
 				}
 				break;
+			}
 			case NetworkEventType::Error:
 			default:
 				//	???
