@@ -13,7 +13,7 @@ namespace servercore
         virtual ~Session() override;
 
     public:
-        virtual NetworkObjectType   GetNetworkObjectType() override;
+		virtual NetworkObjectType   GetNetworkObjectType() override { return NetworkObjectType::Session; }
         virtual SocketFd            GetSocketFd() const override { return _socketFd; }
         virtual void                Dispatch(INetworkEvent* networkEvent) override;
 
@@ -29,16 +29,20 @@ namespace servercore
         virtual void OnSend() {};
 
     private:
+        bool        RegisterAsyncConnect();
+
+    private:
         //  결과값 기반으로 에러처리 상세히 !
 		void		ProcessConnect();
         void        ProcessConnect(ConnectEvent* connectEvent);
+        bool        QueryConnectError();
+        
 		void		ProcessDisconnect(DisconnectEvent* disconnectEvent);
 		void		ProcessRecv(RecvEvent* recvEvent);
 		void		ProcessSend(SendEvent* sendEvent);
 
 		void		CloseSocket();
 
-        bool        QueryConnectError();
 
 	public:
 		void								SetNetworkDispatcher(std::shared_ptr<INetworkDispatcher> networkDispatcher) { _networkDispatcher = networkDispatcher; }
@@ -49,8 +53,7 @@ namespace servercore
 		void				SetRemoteAddress(const NetworkAddress& remoteAddress) { _remoteAddress = remoteAddress; }
 		NetworkAddress		GetRemoteAddress() const { return _remoteAddress; }
 
-		bool				IsConnected() const { return _isConnected.load(); }
-        bool                IsConnectPending() const { return _isConnectPending.load(std::memory_order_acquire); }
+        SessionState		GetState() const { return _state.load(std::memory_order_acquire); }
 		uint64				GetSessionId() const { return _sessionId; }
 
     private:
@@ -62,9 +65,7 @@ namespace servercore
         NetworkAddress                              _remoteAddress{};
         std::shared_ptr<INetworkDispatcher>         _networkDispatcher;
 
-        std::atomic<bool> _isConnected = false;
-        std::atomic<bool> _isConnectPending = false;
-        std::atomic<bool> _isDisconnectPosted = false;
+        std::atomic<SessionState>                   _state = SessionState::Disconnected;
 
         std::queue<std::shared_ptr<SendContext>>	_sendContextQueue;
         Lock										_lock;

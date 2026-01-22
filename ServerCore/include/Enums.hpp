@@ -22,6 +22,14 @@ namespace servercore
 		Session,
 	};
 
+	enum class SessionState
+	{
+		ConnectPending,
+		Connected,
+		DisconnectPosted,
+		Disconnected,
+	};
+
 	enum class DispatchResult
 	{
 		EventTriggered = 100,

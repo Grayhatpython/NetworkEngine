@@ -60,18 +60,14 @@ namespace servercore
         if(_globalContext == nullptr)
             return false;
 
-        if(_isRunning.exchange(true) == true)
-            return false;
-        
         _acceptor->SetNetworkDispatcher(_networkDispatcher);
-
         if(_acceptor->Start(port) == false)
         {
-            _isRunning.store(false);
             return false;
         }
-
+        
         _port = port;
+        _isRunning.store(true, std::memory_order_release);
             
         return true;
     }
@@ -94,8 +90,23 @@ namespace servercore
 
     }
 
-    bool Client::Connect(NetworkAddress& targetAddress)
+    bool Client::Connect(NetworkAddress& targetAddress, int32 connectionCount)
     {
+        for (auto i = 0; i < connectionCount; i++)
+        {
+            auto seession = GSessionManager->CreateSession();
+            assert(seession);
+
+            GSessionManager->AddSession(seession);
+
+            if (seession->Connect(targetAddress) == false) 
+            {
+                GSessionManager->RemoveSession(seession);
+                return false;
+            }
+        }
+        
+        _isRunning.store(true, std::memory_order_release);
         return true;
     }
 

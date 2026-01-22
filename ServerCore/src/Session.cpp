@@ -24,7 +24,8 @@ namespace servercore
 
 	bool Session::Connect(NetworkAddress& targetAddress)
 	{
-		if (_isConnected.load() == true || _isConnectPending.load() == true)
+		SessionState state = GetState();
+		if (state != SessionState::Disconnected)
 		{
 			return false;
 		}
@@ -48,7 +49,7 @@ namespace servercore
 		}
 
 		struct sockaddr_in serverAddress = targetAddress.GetSocketAddress();
-		_isConnectPending.store(true, std::memory_order_release);
+		_state.store(SessionState::ConnectPending, std::memory_order_release);
 
 		int32 ret = ::connect(_socketFd, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 		
@@ -57,7 +58,7 @@ namespace servercore
 			if(_networkDispatcher->Register(shared_from_this()) == false)
 			{
 				NetworkUtils::CloseSocketFd(_socketFd);
-				_isConnectPending.store(false, std::memory_order_release);
+				_state.store(SessionState::Disconnected, std::memory_order_release);
 				return false;
 			}
 
@@ -72,31 +73,11 @@ namespace servercore
 			if(errno != EINPROGRESS)
 			{
 				NetworkUtils::CloseSocketFd(_socketFd);
-				_isConnectPending.store(false, std::memory_order_release);
+				_state.store(SessionState::Disconnected, std::memory_order_release);
 				return false;
 			}
 
-			if(_networkDispatcher->Register(shared_from_this()) == false)
-			{
-				NetworkUtils::CloseSocketFd(_socketFd);
-				_isConnectPending.store(false, std::memory_order_release);
-				return false;
-			}
-
-			auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
-			if(epollDispatcher == nullptr)
-			{
-				NetworkUtils::CloseSocketFd(_socketFd);
-				_isConnectPending.store(false, std::memory_order_release);
-				return false;
-			}
-
-			if(epollDispatcher->EnableConnectEvent(shared_from_this()) == false)
-			{
-				NetworkUtils::CloseSocketFd(_socketFd);
-				_isConnectPending.store(false, std::memory_order_release);
-				return false;
-			}
+			return RegisterAsyncConnect();
 		}
 
 		return true;
@@ -104,31 +85,37 @@ namespace servercore
 
 	void Session::Disconnect()
 	{
-		if (_isConnected.load() == false || _isDisconnectPosted.exchange(true))
-			return;
+		SessionState expected = SessionState::Connected;
+		
+		if(_state.compare_exchange_strong(expected, SessionState::Disconnected, std::memory_order_acq_rel, std::memory_order_acquire))
+		{	
+			DisconnectEvent* disconnectEvent = cnew<DisconnectEvent>();
+			auto session = shared_from_this();
+			disconnectEvent->SetOwner(session);
 
-		DisconnectEvent* disconnectEvent = cnew<DisconnectEvent>();
-		auto session = shared_from_this();
-		disconnectEvent->SetOwner(session);
+			auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+			if(epollDispatcher)
+			{
+				bool successed = epollDispatcher->UnRegister(shared_from_this());
+				if(successed == false)
+					;	//	?
+			}
+			else
+			{
+				//?
+			}
 
-		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
-		if(epollDispatcher)
-		{
-			bool successed = epollDispatcher->UnRegister(shared_from_this());
-			if(successed == false)
-				;	//	?
+			ProcessDisconnect(disconnectEvent);
 		}
 		else
 		{
-			//?
+			;
 		}
-
-		ProcessDisconnect(disconnectEvent);
 	}
 
 	bool Session::TryFlushSend(std::shared_ptr<SendContext> sendContext)
 	{
-		if(_isConnected.load() == false)
+		if(GetState() != SessionState::Connected)
 			return false;
 
 		/* 
@@ -146,28 +133,51 @@ namespace servercore
 		return true;
 	}
 
-	void Session::ProcessConnect()
+	bool Session::RegisterAsyncConnect()
 	{
-		if(QueryConnectError() == false)
+		if(_networkDispatcher->Register(shared_from_this()) == false)
 		{
-			
+			NetworkUtils::CloseSocketFd(_socketFd);
+			_state.store(SessionState::Disconnected, std::memory_order_release);
+			return false;
 		}
 
-		_isConnectPending.store(false, std::memory_order_release);
+		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+		if(epollDispatcher == nullptr)
+		{
+			NetworkUtils::CloseSocketFd(_socketFd);
+			_state.store(SessionState::Disconnected, std::memory_order_release);
+			return false;
+		}
 
-		//	Server Client Contents 
-		OnConnected();
+		if(epollDispatcher->EnableConnectEvent(shared_from_this()) == false)
+		{
+			NetworkUtils::CloseSocketFd(_socketFd);
+			_state.store(SessionState::Disconnected, std::memory_order_release);
+			return false;
+		}
+
+		return true;
 	}
 
+	//	Server Accept4() -> ProcessConnect
+	void Session::ProcessConnect()
+	{
+		//	Server Client Contents 
+		OnConnected();
+
+		_state.store(SessionState::Connected, std::memory_order_release);
+	}
+
+	//	Client Connect() -> ProcessConnect
 	void Session::ProcessConnect(ConnectEvent* connectEvent)
 	{
+		//	TODO
 		//	그만
 		if(QueryConnectError() == false)
 		{
-
+			CloseSocket();
 		}
-
-		_isConnectPending.store(false, std::memory_order_release);
 
 		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
 		if(epollDispatcher)
@@ -180,6 +190,8 @@ namespace servercore
 
 		OnConnected();
 		
+		_state.store(SessionState::Connected, std::memory_order_release);
+
 		if(connectEvent)
 		{
 			cdelete(connectEvent);
@@ -203,10 +215,7 @@ namespace servercore
 	}
 
 	void Session::ProcessDisconnect(DisconnectEvent* disconnectEvent)
-	{
-		_isConnected.store(false);
-		_isDisconnectPosted.store(false);
-
+	{	
 		OnDisconnected();
 
 		CloseSocket();
@@ -225,6 +234,12 @@ namespace servercore
 
 	void Session::ProcessRecv(RecvEvent* recvEvent)
 	{
+		if(GetState() != SessionState::Connected)
+		{
+			;
+		}
+
+
 		while(true)
 		{
 			int32 recvLen = ::recv(_socketFd, _streamBuffer.GetWritePos(), _streamBuffer.GetWriteableSize(), 0);
@@ -301,6 +316,10 @@ namespace servercore
 
 	void Session::ProcessSend(SendEvent* sendEvent)
 	{
+		if(GetState() != SessionState::Connected)
+		{
+			;
+		}
 
 	}
 

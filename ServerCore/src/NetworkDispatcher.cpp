@@ -163,7 +163,7 @@ namespace servercore
 
                         if (session)
                         {
-                            if(session->IsConnectPending() == true)
+                            if(session->GetState() == SessionState::ConnectPending)
                             {
                                 //  connect
                                 ConnectEvent *connectEvent = cnew<ConnectEvent>();

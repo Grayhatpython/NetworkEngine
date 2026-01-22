@@ -54,7 +54,7 @@ namespace servercore
        virtual ~Client() override;
 
     public:
-        bool Connect(NetworkAddress& targetAddress);
+        bool Connect(NetworkAddress& targetAddress, int32 connectionCount = 1);
         virtual void Stop() override;
 
     private:
