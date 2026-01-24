@@ -21,10 +21,8 @@ namespace servercore
 
 	bool Acceptor::Start(uint16 port, int32 backlog)
 	{
-		if (_listenSocketFd == INVALID_SOCKET_FD_VALUE)
-		{
+		if (_listenSocketFd != INVALID_SOCKET_FD_VALUE)
 			return false;
-		}
 
 		//	Overlapped Socket
 		_listenSocketFd = NetworkUtils::CreateSocketFd(true);
@@ -35,25 +33,25 @@ namespace servercore
 
 		if (_networkDispatcher->Register(shared_from_this()) == false)
 		{
-			NetworkUtils::CreateSocketFd(_listenSocketFd);
+			NetworkUtils::CloseSocketFd(_listenSocketFd);
 			return false;
 		}
 
 		if (NetworkUtils::SetReuseAddress(_listenSocketFd, true) == false)
 		{
-			NetworkUtils::CreateSocketFd(_listenSocketFd);
+			NetworkUtils::CloseSocketFd(_listenSocketFd);
 			return false;
 		}
 
 		if (NetworkUtils::Bind(_listenSocketFd, port) == false)
 		{
-			NetworkUtils::CreateSocketFd(_listenSocketFd);
+			NetworkUtils::CloseSocketFd(_listenSocketFd);
 			return false;
 		}
 
 		if (NetworkUtils::Listen(_listenSocketFd, backlog) == false)
 		{
-			NetworkUtils::CreateSocketFd(_listenSocketFd);
+			NetworkUtils::CloseSocketFd(_listenSocketFd);
 			return false;
 		}
 

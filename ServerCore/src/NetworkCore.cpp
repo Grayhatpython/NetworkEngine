@@ -9,17 +9,13 @@
 namespace servercore
 {
     INetworkCore::INetworkCore(std::function<std::shared_ptr<Session>()> sessionFactory)
-        : _globalContext(std::make_unique<GlobalContext>())
     {
-        NetworkUtils::Initialize();
-        _globalContext->Initialize();
-
-        GSessionManager->SetSessionFactory(sessionFactory);
+        Initialize(sessionFactory);
     }
 
     INetworkCore::~INetworkCore()
     {
-
+        GlobalContext::GetInstance().Clear();
     }
 
     void INetworkCore::Stop()
@@ -36,6 +32,23 @@ namespace servercore
         }
 
         return DispatchResult::InvalidDispatcher;
+    }
+
+    void INetworkCore::Initialize(std::function<std::shared_ptr<Session>()> sessionFactory)
+    {
+        NetworkUtils::Initialize();
+        GlobalContext::GetInstance().Initialize();
+        GSessionManager->SetSessionFactory(sessionFactory);
+
+        {
+            _networkDispatcher = std::make_shared<EpollDispatcher>();
+            auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+            
+            if(epollDispatcher)
+            {
+                epollDispatcher->Initialize();
+            }
+        }
     }
 
     Server::Server(std::function<std::shared_ptr<Session>()> sessionFactory)
@@ -57,10 +70,7 @@ namespace servercore
         if(_networkDispatcher == nullptr)
             return false;
 
-        if(_globalContext == nullptr)
-            return false;
-
-        _acceptor->SetNetworkDispatcher(_networkDispatcher);
+        _acceptor->_networkDispatcher = _networkDispatcher;
         if(_acceptor->Start(port) == false)
         {
             return false;
@@ -95,14 +105,17 @@ namespace servercore
         for (auto i = 0; i < connectionCount; i++)
         {
             auto seession = GSessionManager->CreateSession();
-            assert(seession);
 
-            GSessionManager->AddSession(seession);
-
-            if (seession->Connect(targetAddress) == false) 
+            if(seession)
             {
-                GSessionManager->RemoveSession(seession);
-                return false;
+                GSessionManager->AddSession(seession);
+                seession->_networkDispatcher = _networkDispatcher;
+
+                if (seession->Connect(targetAddress) == false) 
+                {
+                    GSessionManager->RemoveSession(seession);
+                    return false;
+                }
             }
         }
         

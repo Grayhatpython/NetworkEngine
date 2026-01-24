@@ -6,6 +6,8 @@ namespace servercore
     class AcceptEvent;
 	class Acceptor : public EpollObject
 	{
+		friend class Server;
+		
 	public:
 		Acceptor();
 		virtual ~Acceptor() override;

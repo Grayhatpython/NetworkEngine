@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "wait-2s",
+      "type": "shell",
+      "command": "sleep 2"
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 #include "Pch.hpp"  
 #include "Session.hpp"
+#include "NetworkCore.hpp"
+
 /*
 #pragma pack(push, 1)
 struct TestPacket : PacketHeader
@@ -107,7 +109,7 @@ class ServerSession : public servercore::Session
 public:
     virtual void OnConnected() override
     {
-
+        std::cout << "Server to Connected" << std::endl;
     }
 
     virtual void OnDisconnected() override
@@ -131,42 +133,48 @@ private:
 
 int main(int argc, char* argv[])
 {
-    // SOCKET socket = INVALID_SOCKET;
-    // ServerCore::NetworkAddress serverAddress("127.0.0.1", 8888);
-    // std::string message = "Hello World";
+       //  SessionFactory 
+    std::function<std::shared_ptr<ServerSession>(void)> sessionFactory = []() {
+        return servercore::MakeShared<ServerSession>();
+    };
 
-    // socket = ServerCore::NetworkUtils::CreateSocket(false);
-    // ::connect(socket, (struct sockaddr*)&serverAddress.GetSocketAddress(), sizeof(struct sockaddr_in));
+    std::unique_ptr<servercore::Client> client = std::make_unique<servercore::Client>(sessionFactory);
+    servercore::NetworkAddress targetAddress{"127.0.0.1", 8000};
+    bool successed = client->Connect(targetAddress);
 
-    // std::cout << "Server Connected!" << std::endl;
+    if(successed == false)
+        return RESULT_ERROR;
 
-    // bool connected = true;
-    // while(connected)
-    // {
-    //     int32 bytesSent = ::send(socket, message.c_str(), message.length(), 0);
 
-    //     if(bytesSent < 0)
-    //     {
-    //         connected = false;
-    //     }
-    //     else if(bytesSent == 0)
-    //         connected = false;
-    //     else if(static_cast<size_t>(bytesSent) < message.length()) 
-    //         std::cout << "메세지 일부만 전송?" << bytesSent << "/" << message.length() << " bytes" << std::endl;
-    //     else
-    //         std::cout << "[" << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << "] " << " : " << message << " 패킷 전송 완료 (" << bytesSent << ")" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
 
-    //     if(connected == false)
-    //         break;
+    for (int i = 0; i < 1; i++)
+    {
+        servercore::GThreadManager->Launch([&client]() {
+                while(true)
+                {
+                    auto dispatchResult = client->NetworkDispatch();
 
-    //     std::this_thread::sleep_for(std::chrono::seconds(1));
-    // }
+                    //  TODO
+                    if(dispatchResult == servercore::DispatchResult::InvalidDispatcher || 
+                        dispatchResult == servercore::DispatchResult::ExitRequested)
+                    {
+                        //  server->Stop();
+                        break;
+                    }
+                }   
+            },"Dispatch Thread");
+    }
+    
+    servercore::GThreadManager->Join();
 
-    // if(socket != INVALID_SOCKET)
-    // {
-    //     ServerCore::NetworkUtils::CloseSocket(socket);
-    //     std::cout << "연결 종료!" << std::endl;
-    // }
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    std::chrono::duration<double, std::milli> duration = end - start;
+
+    std::cout << "시간 : " << duration.count() << " ms" << std::endl;
+
+    return 0;
  
     return 0;
 }

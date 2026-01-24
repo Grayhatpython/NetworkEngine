@@ -5,9 +5,12 @@
 
 namespace servercore
 {
+
     class Session : public EpollObject
     {
         friend class Acceptor;
+        friend class Client;
+
     public:
         Session();
         virtual ~Session() override;

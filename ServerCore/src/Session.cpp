@@ -42,12 +42,6 @@ namespace servercore
 			return false;
 		}
 
-		if (_networkDispatcher->Register(shared_from_this()) == false)
-		{
-			NetworkUtils::CloseSocketFd(_socketFd);
-			return false;
-		}
-
 		struct sockaddr_in serverAddress = targetAddress.GetSocketAddress();
 		_state.store(SessionState::ConnectPending, std::memory_order_release);
 
