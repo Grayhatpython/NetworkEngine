@@ -30,6 +30,12 @@ namespace servercore
 		Disconnected,
 	};
 
+	enum class CoreEventType : uint8
+    {
+        SessionRemove, 
+        CoreShutdown
+    };
+
 	enum class DispatchResult
 	{
 		//	결과를 더 세부적으로..
@@ -41,6 +47,6 @@ namespace servercore
 		NetworkEventDispatched,
 		InvalidDispatcher,
 
-		ControlEventDispatched = 200
+		CoreEventDispatched = 200
 	};
 }

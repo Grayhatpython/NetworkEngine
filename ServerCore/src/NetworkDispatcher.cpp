@@ -13,16 +13,16 @@ namespace servercore
     
     EpollDispatcher::~EpollDispatcher() 
     {
-        if(_controlEvents.shutdownFd != INVALID_EVENT_FD_VALUE)
+        if(_coreEvents.shutdownFd != INVALID_EVENT_FD_VALUE)
         {
-            ::close(_controlEvents.shutdownFd);
-            _controlEvents.shutdownFd = INVALID_EVENT_FD_VALUE;
+            ::close(_coreEvents.shutdownFd);
+            _coreEvents.shutdownFd = INVALID_EVENT_FD_VALUE;
         }
 
-        if(_controlEvents.removeSessionFd != INVALID_EVENT_FD_VALUE)
+        if(_coreEvents.removeSessionFd != INVALID_EVENT_FD_VALUE)
         {
-            ::close(_controlEvents.removeSessionFd);
-            _controlEvents.removeSessionFd = INVALID_EVENT_FD_VALUE;
+            ::close(_coreEvents.removeSessionFd);
+            _coreEvents.removeSessionFd = INVALID_EVENT_FD_VALUE;
         }
 
         if(_epollFd != INVALID_EPOLL_FD_VALUE)
@@ -48,16 +48,16 @@ namespace servercore
     
     bool EpollDispatcher::RegisterShutdownFd()
     {
-        _controlEvents.shutdownFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-        if (_controlEvents.shutdownFd == RESULT_ERROR) 
+        _coreEvents.shutdownFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        if (_coreEvents.shutdownFd == RESULT_ERROR) 
             return false;
 
         epoll_event epollEvent{};
         // counter > 0 이면 readable
         epollEvent.events = EPOLLIN;                 
-        epollEvent.data.fd = _controlEvents.shutdownFd;
+        epollEvent.data.fd = _coreEvents.shutdownFd;
 
-        if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD,_controlEvents.shutdownFd , &epollEvent) == RESULT_ERROR)
+        if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD,_coreEvents.shutdownFd , &epollEvent) == RESULT_ERROR)
             return false;
 
         return true;
@@ -65,16 +65,16 @@ namespace servercore
 
     bool EpollDispatcher::RegisterRemoveSessionFd()
     {
-        _controlEvents.removeSessionFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-        if (_controlEvents.removeSessionFd == RESULT_ERROR) 
+        _coreEvents.removeSessionFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        if (_coreEvents.removeSessionFd == RESULT_ERROR) 
             return false;
 
         epoll_event epollEvent{};
         // counter > 0 이면 readable
         epollEvent.events = EPOLLIN;                 
-        epollEvent.data.fd = _controlEvents.removeSessionFd;
+        epollEvent.data.fd = _coreEvents.removeSessionFd;
 
-        if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD,_controlEvents.removeSessionFd , &epollEvent) == RESULT_ERROR)
+        if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD,_coreEvents.removeSessionFd , &epollEvent) == RESULT_ERROR)
             return false;
 
         return true;
@@ -113,16 +113,21 @@ namespace servercore
         {
             for(int32 i = 0 ; i < numOfEvents; i++)
             {
-                if(_epollEvents[i].data.fd == _controlEvents.shutdownFd)
+                if(_epollEvents[i].data.fd == _coreEvents.shutdownFd)
                 {
+                    ConsumeEventSignal(CoreEventType::CoreShutdown);
+
                     return DispatchResult::ExitRequested;
                 }
 
-                if(_epollEvents[i].data.fd == _controlEvents.removeSessionFd)
+                if(_epollEvents[i].data.fd == _coreEvents.removeSessionFd)
                 {
                     //  TODO
-                    GSessionManager->RemoveSession();
-                    return DispatchResult::ControlEventDispatched;
+                    GSessionManager->ProcessRemoveSessionEvent();
+
+                    ConsumeEventSignal(CoreEventType::SessionRemove);
+
+                    return DispatchResult::CoreEventDispatched;
                 }
 
                 auto networkObject = static_cast<INetworkObject*>(_epollEvents[i].data.ptr);
@@ -194,7 +199,8 @@ namespace servercore
                             else
                             {
                                 //  send enable   
-                                
+                                SendEvent* sendEvent = cnew<SendEvent>();
+                                session->Dispatch(sendEvent);
                             }
                         }
                     }
@@ -212,23 +218,13 @@ namespace servercore
         if(numOfEvents == static_cast<int32>(_epollEvents.size()))
             _epollEvents.resize(_epollEvents.size() * 2);
 
-        return DispatchResult::ControlEventDispatched;
+        return DispatchResult::NetworkEventDispatched;
     }
 
-    void EpollDispatcher::PostShutdownEvent()
-    {
-        PostEventSignal(_controlEvents.shutdownFd);
-    }
-
-    void EpollDispatcher::PostSessionRemoveEvent()
-    {
-        PostEventSignal(_controlEvents.removeSessionFd);   
-    }
-
-    void EpollDispatcher::PostEventSignal(EventFd controlEvent)
+    void EpollDispatcher::PostEventSignal(EventFd coreEventFd)
     {
         uint64 signal = 1;
-        ssize_t n = ::write(controlEvent, &signal, sizeof(signal));
+        ssize_t n = ::write(coreEventFd, &signal, sizeof(signal));
         if (n < 0)
         {
             // EAGAIN이면 counter가 이미 충분히 쌓여있거나(드물지만) 일시적 상황
@@ -238,6 +234,95 @@ namespace servercore
                 
             }
         }
+    }
+
+    void EpollDispatcher::PostRemoveSessionEvent(uint64 sessionId)
+    {
+        GSessionManager->PushRemoveSessionEvent(sessionId);
+
+        PostEventSignal(_coreEvents.removeSessionFd);
+    }
+
+    void EpollDispatcher::PostCoreShutdown()
+    {
+        PostEventSignal(_coreEvents.shutdownFd);
+    }
+
+    void EpollDispatcher::ConsumeEventSignal(CoreEventType type)
+    {
+        switch (type)
+        {
+        case CoreEventType::CoreShutdown:
+            ConsumeEventSignal(_coreEvents.shutdownFd);
+            break;
+        case CoreEventType::SessionRemove:
+            ConsumeEventSignal(_coreEvents.removeSessionFd);
+            break;
+        default:
+            break;
+        }
+    }
+
+    void EpollDispatcher::ConsumeEventSignal(EventFd coreEventFd)
+    {
+            // eventfd는 내부적으로 "uint64_t 카운터"를 가진다.
+            // - 다른 스레드가 write(값>0)을 하면 카운터가 그만큼 증가한다.
+            // - epoll은 카운터가 0보다 크면 readable(EPOLLIN) 상태가 된다.
+            //
+            // read()를 8바이트(uint64_t)로 성공하면:
+            // 1) 현재 누적된 카운터 값을 읽어서 가져오고
+            // 2) eventfd 내부 카운터를 0으로 "리셋"한다.
+            //
+            // 따라서 일반적으로는 "깨울 일이 있었다"는 사실만 중요하고,
+            // 카운터의 정확한 값은 보통 쓰지 않는다.
+            //
+            // 또한 non-blocking 모드(EFD_NONBLOCK)에서는:
+            // - 읽을 값이 없으면 read()가 -1을 리턴하고 errno = EAGAIN/EWOULDBLOCK가 된다.
+            // - 안전하게 상태를 정리하려면 EAGAIN까지 계속 읽는 루프를 두는 편이 정석이다.
+            //
+            // (특히 EPOLLET(엣지 트리거)를 쓰는 경우에는 "모두 소비"가 사실상 필수다.)
+
+            for (;;)
+            {
+                uint64_t wakeupCount = 0;
+                ssize_t bytesRead = ::read(coreEventFd, &wakeupCount, sizeof(wakeupCount));
+
+                if (bytesRead == static_cast<ssize_t>(sizeof(wakeupCount)))
+                {
+                    // 성공적으로 8바이트를 읽었다.
+                    // 이 시점에 eventfd 내부 카운터는 0으로 초기화된다.
+                    //
+                    // 여기서 wakeupCount는 "누적된 write 호출(또는 증가량)"의 합을 의미한다.
+                    // 다만 대부분의 경우:
+                    // - '몇 번 깨웠는지'보다
+                    // - '깨울 일이 발생했으니 큐/상태를 처리하자'
+                    // 가 목적이므로 값을 굳이 사용하지 않는다.
+                    //
+                    // 루프를 계속 도는 이유:
+                    // - 논리적으로는 한 번 읽으면 0이 되지만,
+                    // - read 직후 다른 스레드가 또 write를 해버리면 다시 카운터가 >0이 될 수 있다.
+                    // - 이런 케이스까지 포함해 "현재 시점에서 남은 readable 상태를 최대한 정리"하려면
+                    //   EAGAIN이 뜰 때까지 반복하는 게 가장 단순하고 안전하다.
+                    continue;
+                }
+
+                if (bytesRead == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                {
+                    // 더 이상 읽을 카운터가 없다(완전히 소비 완료).
+                    // 즉, eventfd 카운터는 0이고 EPOLLIN 조건도 해소된 상태.
+                    break;
+                }
+
+                if (bytesRead == -1 && errno == EINTR)
+                {
+                    // 시그널로 인해 read가 중단됐다.
+                    // 이 경우는 "실패"가 아니라 "재시도"가 정석이다.
+                    continue;
+                }
+
+                // 예: fd가 닫혔거나, 예상치 못한 오류.
+                break;
+            }
     }
 
     bool EpollDispatcher::EnableConnectEvent(std::shared_ptr<INetworkObject> networkObject)

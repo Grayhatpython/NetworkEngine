@@ -20,9 +20,12 @@ namespace servercore
 
     void INetworkCore::Stop()
     {
-        _networkDispatcher->PostExitSignal();
+        GSessionManager->Clear();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+        epollDispatcher->PostCoreShutdown();
 
         GlobalContext::GetInstance().Clear();
     }
@@ -112,23 +115,36 @@ namespace servercore
 
     bool Client::Connect(NetworkAddress& targetAddress, int32 connectionCount)
     {
-        for (auto i = 0; i < connectionCount; i++)
+        std::vector<uint64> connectedSessions;  
+
+        for (int i = 0; i < connectionCount; ++i)
         {
-            auto seession = GSessionManager->CreateSession();
+            auto session = GSessionManager->CreateSession();
+     
+            GSessionManager->AddSession(session);
+            connectedSessions.push_back(session->GetSessionId());
 
-            if(seession)
+            session->_networkDispatcher = _networkDispatcher;
+
+            if (session->Connect(targetAddress) == false)
             {
-                GSessionManager->AddSession(seession);
-                seession->_networkDispatcher = _networkDispatcher;
+                // 1) 이번 세션은 즉시 파기(정상 진입 전)
+                GSessionManager->AbortSession(session->GetSessionId());
 
-                if (seession->Connect(targetAddress) == false) 
+                // 2) 이미 만들어진 다른 세션들 정리
+                for (auto id : connectedSessions)
                 {
-                    GSessionManager->RemoveSession(seession);
-                    return false;
+                    if (id == session->GetSessionId()) 
+                        continue;
+
+                    auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+                    epollDispatcher->PostRemoveSessionEvent(id);
                 }
+
+                return false;
             }
         }
-        
+
         _isRunning.store(true, std::memory_order_release);
         return true;
     }

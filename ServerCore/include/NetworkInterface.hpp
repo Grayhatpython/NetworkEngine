@@ -43,7 +43,7 @@ namespace servercore
     public:
         virtual NetworkObjectType   GetNetworkObjectType() = 0;
         virtual SocketFd            GetSocketFd() const = 0;
-        virtual void                Dispatch(INetworkEvent* networkEvent) = 0;
+
     };
 
     class INetworkDispatcher  : public std::enable_shared_from_this<INetworkDispatcher>
@@ -55,12 +55,4 @@ namespace servercore
         virtual bool Register(std::shared_ptr<INetworkObject> networkObject) = 0;
         virtual DispatchResult Dispatch(uint32 timeoutMs = TIMEOUT_INFINITE) = 0;
     };
-
-    class SendBuffer;
-    struct SendContext
-    {
-        std::shared_ptr<SendBuffer> sendBuffer;
-        struct iovec iovecBuf{};
-    };
-    
 }

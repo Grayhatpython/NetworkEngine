@@ -2,6 +2,14 @@
 #include "Session.hpp"
 #include "NetworkCore.hpp"
 
+#pragma pack(push, 1)
+struct TestPacket : PacketHeader
+{
+    uint64 playerId;
+    uint64 playerMp;
+};
+#pragma pack(pop)
+
 class ClientSession : public servercore::Session
 {
 public:
@@ -17,7 +25,9 @@ public:
 
     virtual void OnRecv(BYTE* buffer, int32 numOfBytes) override
     {
+        TestPacket* testPacket = reinterpret_cast<TestPacket*>(buffer);
 
+        std::cout << testPacket->playerId << " " << testPacket->playerMp << " " << testPacket->size << " " << std::endl;
     }
 
     virtual void OnSend() override

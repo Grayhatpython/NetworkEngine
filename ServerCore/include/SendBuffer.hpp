@@ -28,6 +28,13 @@ namespace servercore
         std::vector<BYTE>   _buffer;
         int32               _usedSize = 0;
     };
+
+    struct SendContext
+    {
+        std::shared_ptr<SendBuffer> sendBuffer;
+        struct iovec iovecBuf{};
+        size_t offset = 0;
+    };
 }
 
 

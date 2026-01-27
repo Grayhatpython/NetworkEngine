@@ -1,18 +1,20 @@
 #include "Pch.hpp"
 #include "SessionManager.hpp"
 #include "Session.hpp"
+#include "NetworkDispatcher.hpp"
 
 namespace servercore
 {
     SessionManager::SessionManager()
     {
-        Clear();
+
     }
 
     void SessionManager::Clear()
     {
         //  TODO
         //	Session Clear
+        //  여기 문제네
 		std::vector<std::shared_ptr<Session>> sessions;
 		{
 			WriteLockGuard lock(_lock);
@@ -44,7 +46,7 @@ namespace servercore
         _sessions.insert(std::make_pair(session->GetSessionId(), session));
     }
 
-    void SessionManager::RequestRemoveSessionEvent(uint64 sessionId)
+    void SessionManager::PushRemoveSessionEvent(uint64 sessionId)
     {
         {
             //  TODO
@@ -53,7 +55,7 @@ namespace servercore
         }
     }
 
-    void SessionManager::RemoveSession()
+    void SessionManager::ProcessRemoveSessionEvent()
     {
         WriteLockGuard lockGuard(_lock);
         std::queue<uint64> removeSessions;
@@ -65,6 +67,21 @@ namespace servercore
         {
             _sessions.erase(removeSessions.front());
             removeSessions.pop();
+        }
+    }
+
+    void SessionManager::AbortSession(uint64 sessionId)
+    {
+        WriteLockGuard lockGuard(_lock);
+        _sessions.erase(sessionId);
+    }
+
+    void SessionManager::GetSessions(std::vector<std::shared_ptr<Session>>& sessions)
+    {
+        WriteLockGuard lockGuard(_lock);
+        for(const auto& session : _sessions)
+        {
+            sessions.push_back(session.second);
         }
     }
 

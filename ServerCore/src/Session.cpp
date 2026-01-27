@@ -4,6 +4,7 @@
 #include "SessionManager.hpp"
 #include "NetworkDispatcher.hpp"
 
+
 namespace servercore
 {
 	std::atomic<uint64> Session::S_GenerateSessionId = 1;
@@ -15,7 +16,6 @@ namespace servercore
 
 	Session::~Session()
 	{
-		CloseSocket();
 		
 		//	TEMP
 		while (_sendContextQueue.empty() == false)
@@ -102,19 +102,91 @@ namespace servercore
 		if(GetState() != SessionState::Connected)
 			return false;
 
-		/* 
-		[게임 로직이 보내야 할 데이터 발생]
-		TryFlushSend() 호출
-		send()로 가능한 만큼 보냄
-		EAGAIN(버퍼 꽉참) -> EPOLLOUT 감시 켬(여유 생기면 알려달라고)		
-		(시간 지나 송신버퍼에 여유 생김)
-		epoll_wait에서 EPOLLOUT 이벤트 도착
-		다시 TryFlushSend() 호출
-		다 보낼 때까지 반복, 끝나면 EPOLLOUT 끔 
+		{
+			WriteLockGuard lock(_lock);
+			_sendContextQueue.push(sendContext);
+		}
 
-		전담 send 스레드 활용할 생각
-		*/
+		bool expected = false;
+		if(_isSending.compare_exchange_strong(expected, true, std::memory_order_acq_rel) == true)
+		{
+			FlushSend();
+			return true;
+		}
+
 		return true;
+	}
+
+	void Session::FlushSend()
+	{
+		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+
+		std::queue<std::shared_ptr<SendContext>> sendContexts;
+		{
+			WriteLockGuard lock(_lock);
+			
+			while(_sendContextQueue.empty() == false)
+			{
+				auto sendContext = _sendContextQueue.front();
+				sendContexts.push(sendContext);
+				_sendContextQueue.pop();
+			}
+		}
+
+		while(sendContexts.empty() == false)
+		{
+			auto sendContext = sendContexts.front();
+
+			const BYTE* baseSendBufferPtr = sendContext->sendBuffer->GetBuffer();
+			const size_t remainPacketSize = sendContext->iovecBuf.iov_len;
+
+			if(sendContext->offset >= remainPacketSize)
+			{
+				sendContexts.pop();
+				continue;;
+			}
+
+			sendContext->iovecBuf.iov_base =  const_cast<BYTE*>(baseSendBufferPtr + sendContext->offset);
+ 			sendContext->iovecBuf.iov_len  = remainPacketSize - sendContext->offset;
+
+			msghdr msg{};
+			msg.msg_iov = &sendContext->iovecBuf;
+			msg.msg_iovlen = 1;
+
+			ssize_t bytesTransferred = ::sendmsg(_socketFd, &msg, MSG_NOSIGNAL);
+			if(bytesTransferred > 0)
+			{
+				sendContext->offset += static_cast<size_t>(bytesTransferred);
+
+				if(sendContext->offset >= remainPacketSize)
+				{
+					sendContexts.pop();
+				}
+
+				continue;
+			}
+
+			if(bytesTransferred == 0)
+			{
+				epollDispatcher->DisableConnectEvent(shared_from_this());
+				Disconnect();
+				break;
+			}
+
+			if(errno == EINTR)
+				continue;
+
+			if(errno == EAGAIN || errno == EWOULDBLOCK)
+			{
+				epollDispatcher->EnableConnectEvent(shared_from_this());
+				break;
+			}	
+
+			epollDispatcher->DisableConnectEvent(shared_from_this());
+			Disconnect();
+		}
+
+		_isSending.store(false, std::memory_order_release);
 	}
 
 	bool Session::RegisterAsyncConnect()
@@ -221,7 +293,11 @@ namespace servercore
 		auto session = std::static_pointer_cast<Session>(shared_from_this());
 		if(session)
 		{
-			GSessionManager->RequestRemoveSessionEvent(_sessionId);
+			auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
+			if(epollDispatcher)
+			{
+				epollDispatcher->PostRemoveSessionEvent(_sessionId);
+			}
 		}
 	}
 
@@ -309,10 +385,13 @@ namespace servercore
 	void Session::ProcessSend(SendEvent* sendEvent)
 	{
 		if(GetState() != SessionState::Connected)
-		{
 			;
-		}
 
+		bool expected = false;
+		if(_isSending.compare_exchange_strong(expected, true, std::memory_order_acq_rel) == true)
+		{
+			FlushSend();
+		}
 	}
 
     void Session::CloseSocket()

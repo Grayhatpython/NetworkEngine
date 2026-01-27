@@ -2,6 +2,7 @@
 #include "StreamBuffer.hpp"
 #include "NetworkAddress.hpp"
 #include "NetworkEvent.hpp"
+#include "SendBuffer.hpp"
 
 namespace servercore
 {
@@ -33,6 +34,9 @@ namespace servercore
 
     private:
         bool        RegisterAsyncConnect();
+
+    private:
+        void        FlushSend();
 
     private:
         //  결과값 기반으로 에러처리 상세히 !
@@ -77,11 +81,4 @@ namespace servercore
         StreamBuffer								_streamBuffer{};
     };
 
-    #pragma pack(push, 1)
-    struct PacketHeader
-    {
-        uint16 size;
-        uint16 id;
-    };
-    #pragma pack(pop)
 }

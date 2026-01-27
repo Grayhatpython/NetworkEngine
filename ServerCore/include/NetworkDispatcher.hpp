@@ -3,7 +3,7 @@
 
 namespace servercore
 {
-    struct ControlEvents
+    struct CoreEvent
     {
         EventFd removeSessionFd = INVALID_EVENT_FD_VALUE;
         EventFd shutdownFd = INVALID_EVENT_FD_VALUE;
@@ -27,7 +27,25 @@ namespace servercore
     public:
         virtual bool            Register(std::shared_ptr<INetworkObject> networkObject) override;
         virtual DispatchResult  Dispatch(uint32 timeoutMs = TIMEOUT_INFINITE) override;
-
+        
+        /*
+        template<typename... Args>
+        void                    PostEventSignal(CoreEventType type, Args&&... args)
+        {
+            switch (type)
+            {
+            case CoreEventType::CoreShutdown:
+                PostRemoveSessionEvent(_coreEvents.shutdownFd, std::forward<Args>(args)...);
+                break;
+            case CoreEventType::SessionRemove:
+                PostCoreShutdown(_coreEvents.removeSessionFd);
+                break;
+            default:
+                break;
+            }
+        }
+        */
+       
         bool                    EnableConnectEvent(std::shared_ptr<INetworkObject> networkObject);
         bool                    DisableConnectEvent(std::shared_ptr<INetworkObject> networkObject);
         bool                    EnableSendEvent(std::shared_ptr<INetworkObject> networkObject);
@@ -39,11 +57,15 @@ namespace servercore
         bool                    DisableEvent(const std::shared_ptr<INetworkObject>& networkObject);
         
     public:
-        void                    PostShutdownEvent();
-        void                    PostSessionRemoveEvent();
+        void                    PostRemoveSessionEvent(uint64 sessionId);
+        void                    PostCoreShutdown();
+        
+    private:
+        void                    PostEventSignal(EventFd coreEventFd);
 
     private:
-        void                    PostEventSignal(EventFd controlEvent);
+        void                    ConsumeEventSignal(CoreEventType type);                   
+        void                    ConsumeEventSignal(EventFd coreEventFd);
 
     public:
         EpollFd                 GetEpollFd() { return _epollFd; }
@@ -51,6 +73,6 @@ namespace servercore
     private:
         EpollFd                         _epollFd = INVALID_EPOLL_FD_VALUE;
         std::vector<struct epoll_event> _epollEvents;
-        ControlEvents                   _controlEvents;
+        CoreEvent                       _coreEvents;
     };
 }

@@ -3,6 +3,7 @@
 namespace servercore
 {
     class Session;
+    class INetworkDispatcher;
     class SessionManager
     {
     public:
@@ -13,8 +14,12 @@ namespace servercore
         void                        AddSession(std::shared_ptr<Session> session);
         std::shared_ptr<Session>    CreateSession();
 
-        void                        RequestRemoveSessionEvent(uint64 sessionId);
-        void                        RemoveSession();
+        void                        PushRemoveSessionEvent(uint64 sessionId);
+        void                        ProcessRemoveSessionEvent();
+        void                        AbortSession(uint64 sessionId);
+
+        //  임시 테스트용
+        void GetSessions(std::vector<std::shared_ptr<Session>>& sessions);
 
     public:
 	    void                                            SetSessionFactory(std::function<std::shared_ptr<Session>()> sessionFactory) { _sessionFactory = sessionFactory; }

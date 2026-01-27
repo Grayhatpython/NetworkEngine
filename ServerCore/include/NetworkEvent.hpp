@@ -5,7 +5,7 @@ namespace servercore
 {
     class Session;
     class Acceptor;
-
+    class SendContext;
     class NetworkEvent : public INetworkEvent
     {
     public:

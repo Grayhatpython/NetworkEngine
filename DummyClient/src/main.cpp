@@ -1,8 +1,9 @@
 #include "Pch.hpp"  
 #include "Session.hpp"
 #include "NetworkCore.hpp"
+#include "SendBuffer.hpp"
+#include "SessionManager.hpp"
 
-/*
 #pragma pack(push, 1)
 struct TestPacket : PacketHeader
 {
@@ -11,8 +12,6 @@ struct TestPacket : PacketHeader
 };
 #pragma pack(pop)
 
-
-#if defined(PLATFORM_WINDOWS)
 class ParallelSessionSend
 {
 public:
@@ -66,10 +65,10 @@ public:
                         // 4. SendContext 생성 및 전송 요청
                         auto sendContext = std::make_shared<servercore::SendContext>();
                         sendContext->sendBuffer = segment->sendBuffer;
-                        sendContext->wsaBuf.buf = reinterpret_cast<CHAR*>(segment->ptr);
-                        sendContext->wsaBuf.len = static_cast<ULONG>(sizeof(TestPacket));
+                        sendContext->iovecBuf.iov_base = segment->ptr;
+                        sendContext->iovecBuf.iov_len = static_cast<size_t>(testPacket->size);
 
-                        session->Send(sendContext);
+                        session->TryFlushSend(sendContext);
                     }
 
                     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -78,31 +77,6 @@ public:
     }
 };
 
-int main()
-{
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    {
-        std::function<std::shared_ptr<ServerSession>()> sessionFactory = []() {
-            return servercore::MakeShared<ServerSession>();
-            };
-
-        std::shared_ptr<servercore::ClinetService> client = std::make_shared<servercore::ClinetService>(1, sessionFactory);      
-        std::vector< std::shared_ptr<servercore::Session>> serverSessions;
-        auto session = client->Connect(servercore::NetworkAddress("127.0.0.1", 8888), 1, serverSessions);
-
-        ParallelSessionSend pss;
-        pss.ProcessParallelSend(serverSessions, 1);
-
-        while (true)
-        {
-            ;
-        }
-    }
-    return 0;
-}
-#else
-*/
 
 class ServerSession : public servercore::Session
 {
@@ -110,6 +84,7 @@ public:
     virtual void OnConnected() override
     {
         std::cout << "Server to Connected" << std::endl;
+
     }
 
     virtual void OnDisconnected() override
@@ -165,7 +140,15 @@ int main(int argc, char* argv[])
                     }   
                 },"Dispatch Thread");
         }
-        
+    
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        //  TEST
+        std::vector<std::shared_ptr<servercore::Session>> sessions;
+        servercore::GSessionManager->GetSessions(sessions);
+        ParallelSessionSend sendTest;
+        sendTest.ProcessParallelSend(sessions,1);
+
         char input;
 
         std::cin >> input;

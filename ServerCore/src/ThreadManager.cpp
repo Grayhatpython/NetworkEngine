@@ -88,7 +88,7 @@ namespace servercore
 		{
 			std::lock_guard<std::mutex> lock(_lock);
 			if (_shutdown)
-				return;
+				return nullptr;
 
 			_tasks.push(task);
 		}
