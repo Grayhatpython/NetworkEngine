@@ -138,16 +138,16 @@ namespace servercore
 			auto sendContext = sendContexts.front();
 
 			const BYTE* baseSendBufferPtr = sendContext->sendBuffer->GetBuffer();
-			const size_t remainPacketSize = sendContext->iovecBuf.iov_len;
+			const size_t remainPacketSize = sendContext->size - sendContext->offset;
 
-			if(sendContext->offset >= remainPacketSize)
+			if(sendContext->offset >= sendContext->size)
 			{
 				sendContexts.pop();
 				continue;;
 			}
 
 			sendContext->iovecBuf.iov_base =  const_cast<BYTE*>(baseSendBufferPtr + sendContext->offset);
- 			sendContext->iovecBuf.iov_len  = remainPacketSize - sendContext->offset;
+ 			sendContext->iovecBuf.iov_len  = remainPacketSize;
 
 			msghdr msg{};
 			msg.msg_iov = &sendContext->iovecBuf;
@@ -158,7 +158,7 @@ namespace servercore
 			{
 				sendContext->offset += static_cast<size_t>(bytesTransferred);
 
-				if(sendContext->offset >= remainPacketSize)
+				if(sendContext->offset >= sendContext->size)
 				{
 					sendContexts.pop();
 				}
@@ -184,6 +184,7 @@ namespace servercore
 
 			epollDispatcher->DisableConnectEvent(shared_from_this());
 			Disconnect();
+			break;
 		}
 
 		_isSending.store(false, std::memory_order_release);
@@ -239,44 +240,32 @@ namespace servercore
 		}
 
 		//	TODO
-		//	그만
-		if(QueryConnectError() == false)
+		if(GetSocketError() == false)
 		{
-			_state.store(SessionState::Disconnected, std::memory_order_release);
-			CloseSocket();
+			Disconnect();
 			return;
 		}
 
-		//	TODO
+		//	network dispatcher가 등록되지 않은 경우 정상 통신이 불가능하므로 제거
 		if(_networkDispatcher == nullptr)
-			return;
+		{
+			NetworkUtils::CloseSocketFd(_socketFd);
+			GSessionManager->AbortSession(_sessionId);
+		}
 
+		
 		auto epollDispatcher = std::static_pointer_cast<EpollDispatcher>(_networkDispatcher);
 		if(epollDispatcher)
 		{
 			if(epollDispatcher->DisableConnectEvent(shared_from_this()) == false)
 			{
-				;
+				Disconnect();
+				return;
 			}
 		}
 
 		_state.store(SessionState::Connected, std::memory_order_release);
 		OnConnected();
-	}
-
-	bool Session::QueryConnectError()
-	{
-		int32 err = 0;
-		socklen_t len = sizeof(err);
-		if (::getsockopt(_socketFd, SOL_SOCKET, SO_ERROR, &err, &len) < 0)
-			return false;
-
-		if (err != RESULT_OK)
-		{
-			return false;
-		}
-
-		return true;
 	}
 
 	void Session::ProcessDisconnect(DisconnectEvent* disconnectEvent)
@@ -327,51 +316,26 @@ namespace servercore
 				break;
 			}
 
-			//	패킷 파싱 처리
-			while(true)
+			//	처리된 데이터 크기만큼 streamBuffer writePos 처리
+			if (_streamBuffer.OnWrite(recvLen) == false)
 			{
-				//	처리된 데이터 크기만큼 streamBuffer writePos 처리
-				if (_streamBuffer.OnWrite(recvLen) == false)
-				{
-					//	정해진 용량 초과 -> 연결 종료 
-					Disconnect();
-					return;
-				}
-
-				const int32 readableSize = _streamBuffer.GetReadableSize();
-
-				//	최소한 헤더 크기만큼의 데이터가 없으면 파싱 하지 않음
-				if (readableSize < sizeof(PacketHeader))
-					break;
-
-				//	헤더를 읽어서 전체 패킷 크기 확인
-				PacketHeader* packetHeader = reinterpret_cast<PacketHeader*>(_streamBuffer.GetReadPos());
-				const uint16 packetSize = packetHeader->size;
-
-				//	확인한 패킷 크기가 패킷 헤더보다 작다면 -> ?? 로직에 벗어난 패킷임
-				if (packetSize < sizeof(PacketHeader))
-				{
-					//	비정상적인 패킷 크기 연결 종료
-					Disconnect();
-					break;
-				}
-
-				//	패킷 하나만큼의 사이즈를 읽을 수 있다면 -> 완성된 하나의 패킷을 읽을 수 있다면
-				if (readableSize < packetSize)
-					break;
-
-				//	컨텐츠 영역 ( 서버 or 클라이언트 ) 에서 해당 패킷에 대한 로직 처리
-				OnRecv(_streamBuffer.GetReadPos(), packetSize);
-
-				//	streamBuffer ReadPos 처리
-				if (_streamBuffer.OnRead(packetSize) == false)
-				{
-					//	??? 로직상 오면 안되는 부분 연결 종료
-					Disconnect();
-					return;
-				}
+				//	정해진 용량 초과 -> 연결 종료 
+				Disconnect();
+				return;
 			}
 
+			auto dataSize = _streamBuffer.GetReadableSize();
+
+			auto processLen = PacketParsing(_streamBuffer.GetReadPos(), dataSize);
+
+			//	streamBuffer ReadPos 처리
+			if (processLen < 0 || processLen > dataSize || _streamBuffer.OnRead(processLen) == false)
+			{
+				//	??? 로직상 오면 안되는 부분 연결 종료
+				Disconnect();
+				return;
+			}
+			
 			_streamBuffer.Clean();
 		}
 
@@ -380,6 +344,38 @@ namespace servercore
 			cdelete(recvEvent);
 			recvEvent = nullptr;
 		}
+	}
+
+	int32 Session::PacketParsing(BYTE* buffer, int32 dataSize)
+	{
+		int32 processLen = 0;
+
+		//	패킷 파싱 처리
+		while(true)
+		{
+			const int32 readableSize = dataSize - processLen;
+
+			//	최소한 헤더 크기만큼의 데이터가 없으면 파싱 하지 않음
+			if (readableSize < sizeof(PacketHeader))
+				break;
+
+			//	헤더를 읽어서 전체 패킷 크기 확인
+			PacketHeader* packetHeader = reinterpret_cast<PacketHeader*>(&buffer[processLen]);
+			const uint16 packetSize = packetHeader->size;
+
+			//	확인한 패킷 크기가 패킷 헤더보다 작다면
+			if (packetSize < sizeof(PacketHeader))
+			{
+				break;
+			}
+
+			//	컨텐츠 영역 ( 서버 or 클라이언트 ) 에서 해당 패킷에 대한 로직 처리
+			OnRecv(&buffer[processLen], packetSize);
+
+			processLen += packetSize;
+		}
+
+		return processLen;
 	}
 
 	void Session::ProcessSend(SendEvent* sendEvent)
@@ -393,6 +389,16 @@ namespace servercore
 			FlushSend();
 		}
 	}
+
+    void Session::ProcessError(ErrorEvent *errorEvent)
+    {
+		if(GetSocketError() == true)
+		{
+			//	?
+		}
+
+		Disconnect();
+    }
 
     void Session::CloseSocket()
     {
@@ -408,6 +414,21 @@ namespace servercore
 			NetworkUtils::CloseSocketFd(_socketFd);
 			_socketFd = INVALID_SOCKET_FD_VALUE;
 		}			
+    }
+
+    bool Session::GetSocketError()
+    {
+       	int32 err = 0;
+		socklen_t len = sizeof(err);
+		if (::getsockopt(_socketFd, SOL_SOCKET, SO_ERROR, &err, &len) == RESULT_ERROR)
+			return false;
+
+		if (err != RESULT_OK)
+		{
+			return false;
+		}
+
+		return true;
     }
 
     void Session::Dispatch(INetworkEvent* networkEvent)
@@ -450,7 +471,16 @@ namespace servercore
 				break;
 			}
 			case NetworkEventType::Error:
+			{
+				ErrorEvent* errorEvent = static_cast<ErrorEvent*>(networkEvent);
+				if(errorEvent)
+				{
+					auto networkObject = shared_from_this();
+					errorEvent->SetOwner(networkObject);
+					ProcessError(errorEvent);
+				}
 				break;
+			}
 			default:
 				//	???
 				break;
@@ -459,3 +489,5 @@ namespace servercore
 	}
 
 }
+
+         

@@ -26,7 +26,6 @@ public:
     virtual void OnRecv(BYTE* buffer, int32 numOfBytes) override
     {
         TestPacket* testPacket = reinterpret_cast<TestPacket*>(buffer);
-
         std::cout << testPacket->playerId << " " << testPacket->playerMp << " " << testPacket->size << " " << std::endl;
     }
 

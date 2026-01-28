@@ -147,10 +147,7 @@ namespace servercore
                 //  Error Event
                 if((events & (EPOLLERR | EPOLLHUP)) != 0)
                 {
-                    int32 error = 0;
-                    socklen_t len = sizeof(error);
-                    ::getsockopt(networkObject->GetSocketFd(), SOL_SOCKET, SO_ERROR, &error, &len);
-
+  
                     ErrorEvent errorEvent;
 
                     networkObject->Dispatch(&errorEvent);
@@ -208,13 +205,6 @@ namespace servercore
                                 session->Dispatch(sendEvent);
                             }
                         }
-                    }
-                    else if(networkObjectType == NetworkObjectType::Acceptor)
-                    {
-                        ;
-                    }
-                    {
-                        ;
                     }
                 }
             }

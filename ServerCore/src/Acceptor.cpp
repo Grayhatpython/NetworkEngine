@@ -127,6 +127,11 @@ namespace servercore
 				return;
 			}
 
+			if(NetworkUtils::SetTcpNoDelay(clientSocketFd, true) == false)
+			{
+				return;
+			}
+
 			newSession->SetSocketFd(clientSocketFd);
 			newSession->SetRemoteAddress(remoteAddress);
 			

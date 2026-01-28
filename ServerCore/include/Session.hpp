@@ -25,30 +25,34 @@ namespace servercore
         bool    Connect(NetworkAddress& targetNetworkAddress);
         void    Disconnect();
         bool    TryFlushSend(std::shared_ptr<SendContext> sendContext);
-
-    public:
+        
+        public:
         virtual void OnConnected() {};
         virtual void OnDisconnected() {};
         virtual void OnRecv(BYTE* buffer, int32 numOfBytes) {};
         virtual void OnSend() {};
-
+        
+        
     private:
         bool        RegisterAsyncConnect();
-
+        
     private:
         void        FlushSend();
+        int32       PacketParsing(BYTE* buffer, int32 dataSize);
 
     private:
         //  결과값 기반으로 에러처리 상세히 !
 		void		ProcessConnect();
         void        ProcessConnect(ConnectEvent* connectEvent);
-        bool        QueryConnectError();
         
 		void		ProcessDisconnect(DisconnectEvent* disconnectEvent);
 		void		ProcessRecv(RecvEvent* recvEvent);
 		void		ProcessSend(SendEvent* sendEvent);
+        void        ProcessError(ErrorEvent* errorEvent);
 
         void        CloseSocket();
+
+        bool        GetSocketError();
 
 	public:
 		void								SetNetworkDispatcher(std::shared_ptr<INetworkDispatcher> networkDispatcher) { _networkDispatcher = networkDispatcher; }

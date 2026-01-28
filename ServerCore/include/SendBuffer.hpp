@@ -34,6 +34,8 @@ namespace servercore
         std::shared_ptr<SendBuffer> sendBuffer;
         struct iovec iovecBuf{};
         size_t offset = 0;
+        //  TEMP
+        size_t size = 0;
     };
 }
 

@@ -54,8 +54,6 @@ public:
                                 continue; // 이 세션에 대한 전송은 건너뜀
                             }
 
-                            std::cout << "Test" << std::endl;
-
                             // 3. 패킷 구성
                             TestPacket* testPacket = reinterpret_cast<TestPacket*>(segment->ptr);
                             testPacket->id = 3;
@@ -68,7 +66,8 @@ public:
                             sendContext->sendBuffer = segment->sendBuffer;
                             sendContext->iovecBuf.iov_base = segment->ptr;
                             sendContext->iovecBuf.iov_len = static_cast<size_t>(testPacket->size);
-
+                            sendContext->size = static_cast<size_t>(testPacket->size);
+                            
                             session->TryFlushSend(sendContext);
                         }
 
@@ -86,7 +85,6 @@ public:
     virtual void OnConnected() override
     {
         std::cout << "Server to Connected" << std::endl;
-
     }
 
     virtual void OnDisconnected() override
@@ -129,11 +127,11 @@ int main(int argc, char* argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         //  TEST
-        std::vector<std::shared_ptr<servercore::Session>> sessions;
-        servercore::GSessionManager->GetSessions(sessions);
-        ParallelSessionSend sendTest;
-        sendTest.ProcessParallelSend(sessions,1);
-
+        // std::vector<std::shared_ptr<servercore::Session>> sessions;
+        // servercore::GSessionManager->GetSessions(sessions);
+        // ParallelSessionSend sendTest;
+        // sendTest.ProcessParallelSend(sessions,1);
+     
         char input;
 
         std::cin >> input;

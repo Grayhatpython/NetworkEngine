@@ -35,9 +35,24 @@ set_target_properties(${LIB_NAME} PROPERTIES
     PUBLIC_HEADER "${HEADERS}"
 ) 
 
-# ServerCore 라이브러리가 WS2_32.lib에 의존함을 선언
-# INTERFACE 키워드는 이 라이브러리가 직접적으로 ws2_32.lib를 링크하는 것은 아니지만,
-# ServerCore를 사용하는 다른 타겟이 ws2_32.lib를 링크해야 함을 의미합니다.
-if(WIN32)
-    target_link_libraries(${LIB_NAME} INTERFACE ws2_32)
-endif()
+
+# =========================
+# spdlog (GitHub) FetchContent
+# =========================
+include(FetchContent)
+
+# 필요 시 옵션 고정 (원치 않으면 제거 가능)
+set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.17.0
+)
+FetchContent_MakeAvailable(spdlog)
+
+# 헤더온리로 사용
+target_link_libraries(${LIB_NAME} PRIVATE spdlog::spdlog_header_only)
+
+# target_link_libraries(${LIB_NAME} PRIVATE spdlog::spdlog)
